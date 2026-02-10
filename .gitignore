@@ -42,3 +42,8 @@ resumes/
 
 # Environment variables
 .env
+
+# Project-specific files to ignore
+PCM Counter V22 With Client Report V5.html
+import io.txt
+Resume_Screener_Installation_Guide.docx
