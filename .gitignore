@@ -1,0 +1,44 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# Uploaded resumes and job descriptions (keep these private)
+uploads/
+resumes/
+*.pdf
+*.docx
+
+# Logs
+*.log
+
+# Environment variables
+.env
