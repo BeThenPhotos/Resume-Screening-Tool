@@ -664,21 +664,21 @@ st.subheader("1) Upload Inputs")
 
 jd_file = st.file_uploader("Job Description (TXT / PDF / DOCX)", type=["txt","pdf","docx"])
 
-# Seniority Level Selection
+# Seniority Level Selection with integrated mapping
+seniority_options = {
+    "Junior (0-3 years)": 1,
+    "Experienced (3-8 years)": 2,
+    "Senior (8-15 years)": 3,
+    "Leadership (15+ years)": 4
+}
+
 seniority_level = st.selectbox(
     "Expected Role Level",
-    ["Junior", "Experienced", "Senior", "Leadership"],
+    list(seniority_options.keys()),
     help="Select the expected seniority level for this position"
 )
 
-# Map seniority level to numeric code
-seniority_mapping = {
-    "Junior": 1,
-    "Experienced": 2, 
-    "Senior": 3,
-    "Leadership": 4
-}
-required_level = seniority_mapping[seniority_level]
+required_level = seniority_options[seniority_level]
 
 # Keywords section with two separate boxes
 st.subheader("Keywords")
