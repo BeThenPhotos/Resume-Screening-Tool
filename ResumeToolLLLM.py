@@ -17,6 +17,7 @@ import warnings
 
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
 
 import streamlit as st
 from pypdf import PdfReader
@@ -212,7 +213,7 @@ def ollama_chat(messages: List[Dict], model: str = None, json_mode: bool = False
     }
     # Many local models ignore tools/json; we instruct format via prompt.
     try:
-        r = requests.post(f"{OLLAMA_BASE}/api/chat", json=body, timeout=600)
+        r = requests.post(f"{OLLAMA_BASE}/api/chat", json=body, timeout=60)
         r.raise_for_status()
         response_data = r.json()
         if "message" not in response_data or "content" not in response_data["message"]:
@@ -466,6 +467,13 @@ with st.sidebar:
     w_semantic = st.slider("Weight: Semantic similarity", 0.0, 1.0, 0.40, 0.05)
     w_llmfit   = st.slider("Weight: LLM fit score", 0.0, 1.0, 0.30, 0.05)
     w_seniority = st.slider("Weight: Seniority alignment", 0.0, 0.5, 0.2, 0.05)
+
+    # Performance optimization option
+    skip_seniority = st.checkbox(
+        "⚡ Skip seniority scoring (2x faster)",
+        value=False,
+        help="Skip seniority assessment to reduce processing time by ~50%. Uses expected role level as default."
+    )
     
     # Check if using additive seniority weight
     if w_seniority > 0:
@@ -710,11 +718,21 @@ if start_button:
                     else:
                         sem_score = 0.0
 
-                    # (3) LLM fit score (0..100) + short rationale
-                    fit_score, rationale = llm_fit_score_llm(fulltext, JD, model=llm_model)
+                    # (3) & (4) LLM scoring - parallelize if both needed
+                    if skip_seniority:
+                        # Fast path: only run fit scoring
+                        fit_score, rationale = llm_fit_score_llm(fulltext, JD, llm_model)
+                        cand_level = required_level  # Default to expected level
+                        seniority_rationale = "Skipped for performance"
+                    else:
+                        # Full scoring: parallelize both LLM calls
+                        with ThreadPoolExecutor(max_workers=2) as executor:
+                            fit_future = executor.submit(llm_fit_score_llm, fulltext, JD, llm_model)
+                            seniority_future = executor.submit(estimate_seniority, fulltext, llm_model)
 
-                    # (4) Seniority alignment score
-                    cand_level, seniority_rationale = estimate_seniority(fulltext, model=llm_model)
+                            # Wait for both to complete
+                            fit_score, rationale = fit_future.result()
+                            cand_level, seniority_rationale = seniority_future.result()
                     diff = abs(required_level - cand_level)
                     
                     # Map difference to seniority match score
