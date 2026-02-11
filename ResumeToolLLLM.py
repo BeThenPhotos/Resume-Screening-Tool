@@ -152,7 +152,9 @@ def check_model_available(model: str) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Error checking models: {str(e)}"
 
-def ollama_embeddings(texts: List[str], model: str = EMBED_MODEL) -> np.ndarray:
+def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
+    if model is None:
+        model = DEFAULT_EMBED
     # batch into multiple calls to avoid huge payloads
     vectors = []
     for t in texts:
@@ -194,7 +196,9 @@ def ollama_embeddings(texts: List[str], model: str = EMBED_MODEL) -> np.ndarray:
             raise RuntimeError(f"Error getting embeddings: {str(e)}")
     return np.vstack(vectors)
 
-def ollama_chat(messages: List[Dict], model: str = LLM_MODEL, json_mode: bool = False, temperature: float=0.2, system_prompt: str=None) -> str:
+def ollama_chat(messages: List[Dict], model: str = None, json_mode: bool = False, temperature: float=0.2, system_prompt: str=None) -> str:
+    if model is None:
+        model = DEFAULT_LLM
     body = {
         "model": model,
         "messages": ([] if not system_prompt else [{"role": "system", "content": system_prompt}]) + messages,
