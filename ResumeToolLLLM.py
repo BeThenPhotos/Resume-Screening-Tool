@@ -294,14 +294,37 @@ def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
     if na == 0 or nb == 0: return 0.0
     return float(np.dot(a, b) / (na * nb))
 
+def get_context_limits(model: str) -> Tuple[int, int]:
+    """Calculate safe context limits for JD and resume based on model's context window.
+
+    Returns: (max_jd_chars, max_resume_chars)
+    """
+    # Get model's context window from config
+    ctx_window = LLM_MODELS.get(model, {}).get("ctx_window", 8192)
+
+    # Calculate safe character limits
+    # Reserve space for: prompt instructions (~500 tokens), response (~200 tokens), safety margin (30%)
+    # Approximate: 1 token ≈ 4 characters
+    usable_tokens = int(ctx_window * 0.7)  # 30% safety margin
+    usable_chars = usable_tokens * 4
+
+    # Allocate 40% to JD, 60% to resume
+    max_jd_chars = int(usable_chars * 0.4)
+    max_resume_chars = int(usable_chars * 0.6)
+
+    # Set minimums for very small models
+    max_jd_chars = max(1500, max_jd_chars)
+    max_resume_chars = max(2000, max_resume_chars)
+
+    return max_jd_chars, max_resume_chars
+
 def llm_fit_score_llm(resume_text: str, job_desc: str, model: str = None) -> Tuple[float, str]:
     """Ask the LLM for a structured 0–100 fit score with a short rationale."""
     if model is None:
         model = DEFAULT_LLM
 
-    # Truncate to fit in context window (conservative limits for 8B models)
-    max_jd_chars = 2000
-    max_resume_chars = 3000
+    # Calculate context limits based on model's capacity
+    max_jd_chars, max_resume_chars = get_context_limits(model)
 
     prompt = f"""
 You are scoring resume-job fit.
@@ -340,8 +363,8 @@ def estimate_seniority(resume_text: str, model: str = None) -> Tuple[int, str]:
     if model is None:
         model = DEFAULT_LLM
 
-    # Truncate to fit in context window
-    max_resume_chars = 3000
+    # Calculate context limits based on model's capacity
+    _, max_resume_chars = get_context_limits(model)
 
     prompt = f"""
 Analyze this resume and determine the candidate's seniority level.
