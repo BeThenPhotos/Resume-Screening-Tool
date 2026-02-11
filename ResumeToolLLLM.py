@@ -290,8 +290,10 @@ def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
     if na == 0 or nb == 0: return 0.0
     return float(np.dot(a, b) / (na * nb))
 
-def llm_fit_score_llm(resume_text: str, job_desc: str, model: str = LLM_MODEL) -> Tuple[float, str]:
+def llm_fit_score_llm(resume_text: str, job_desc: str, model: str = None) -> Tuple[float, str]:
     """Ask the LLM for a structured 0–100 fit score with a short rationale."""
+    if model is None:
+        model = DEFAULT_LLM
     prompt = f"""
 You are scoring resume-job fit.
 
@@ -324,8 +326,10 @@ RESUME:
         # fallback simple heuristic
         return 50.0, "Heuristic fallback due to parse error."
 
-def estimate_seniority(resume_text: str, model: str = LLM_MODEL) -> Tuple[int, str]:
+def estimate_seniority(resume_text: str, model: str = None) -> Tuple[int, str]:
     """Estimate candidate seniority level using LLM analysis."""
+    if model is None:
+        model = DEFAULT_LLM
     prompt = f"""
 Analyze this resume and determine the candidate's seniority level.
 
