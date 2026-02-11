@@ -27,8 +27,25 @@ import faiss
 # CONFIG
 # ----------------------------
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3:8b")          # change to your local qwen3:8b tag if available
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
+
+# Model presets with descriptions
+LLM_MODELS = {
+    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": True},
+    "qwen2.5:14b": {"name": "Qwen 2.5 14B", "desc": "Balanced quality/speed (9GB VRAM)", "default": False},
+    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": False},
+    "qwen2.5:72b": {"name": "Qwen 2.5 72B", "desc": "Outstanding quality, slower (40GB+ uses CPU+GPU)", "default": False},
+    "llama3.3:70b": {"name": "Llama 3.3 70B", "desc": "Alternative high-quality option (40GB+)", "default": False},
+}
+
+EMBED_MODELS = {
+    "nomic-embed-text": {"name": "Nomic Embed Text", "desc": "Fast, good quality (default)", "default": True},
+    "mxbai-embed-large": {"name": "MxBai Embed Large", "desc": "Better semantic understanding", "default": False},
+    "bge-large": {"name": "BGE Large", "desc": "Alternative high-quality embeddings", "default": False},
+}
+
+# Get defaults from environment or use first default from presets
+DEFAULT_LLM = os.environ.get("LLM_MODEL") or next((k for k, v in LLM_MODELS.items() if v["default"]), "qwen3:8b")
+DEFAULT_EMBED = os.environ.get("EMBED_MODEL") or next((k for k, v in EMBED_MODELS.items() if v["default"]), "nomic-embed-text")
 
 MAX_CHUNK_TOKENS = 800
 CHUNK_OVERLAP = 120
@@ -385,11 +402,46 @@ st.title("🔎 Local Resume Screener (Privacy-First)")
 st.caption("Loads resumes, compares to Job Description + Keywords, ranks candidates, and supports Q&A over selected profiles. Runs on your local LLM via Ollama.")
 
 with st.sidebar:
-    st.header("Models")
-    llm_model = st.text_input("LLM model (Ollama)", LLM_MODEL, help="E.g. qwen2.5:7b or your qwen3:8b tag")
-    embed_model = st.text_input("Embedding model (Ollama)", EMBED_MODEL, help="Recommended: nomic-embed-text")
+    st.header("⚙️ Model Configuration")
+
+    # LLM Model Selection
+    llm_options = [f"{k} - {v['desc']}" for k, v in LLM_MODELS.items()]
+    llm_keys = list(LLM_MODELS.keys())
+    default_llm_idx = llm_keys.index(DEFAULT_LLM) if DEFAULT_LLM in llm_keys else 0
+
+    llm_selection = st.selectbox(
+        "Language Model",
+        llm_options,
+        index=default_llm_idx,
+        help="Choose based on your GPU VRAM and quality needs"
+    )
+    llm_model = llm_keys[llm_options.index(llm_selection)]
+
+    # Embedding Model Selection
+    embed_options = [f"{k} - {v['desc']}" for k, v in EMBED_MODELS.items()]
+    embed_keys = list(EMBED_MODELS.keys())
+    default_embed_idx = embed_keys.index(DEFAULT_EMBED) if DEFAULT_EMBED in embed_keys else 0
+
+    embed_selection = st.selectbox(
+        "Embedding Model",
+        embed_options,
+        index=default_embed_idx,
+        help="Model used for semantic similarity"
+    )
+    embed_model = embed_keys[embed_options.index(embed_selection)]
+
+    # Advanced: Allow custom model input
+    with st.expander("🔧 Advanced: Custom Models"):
+        use_custom_llm = st.checkbox("Use custom LLM model")
+        if use_custom_llm:
+            llm_model = st.text_input("Custom LLM", llm_model)
+
+        use_custom_embed = st.checkbox("Use custom embedding model")
+        if use_custom_embed:
+            embed_model = st.text_input("Custom Embedding", embed_model)
+
     st.divider()
-    st.header("Weights")
+    st.header("⚖️ Scoring Weights")
     w_keywords = st.slider("Weight: Keyword score", 0.0, 1.0, 0.30, 0.05)
     w_semantic = st.slider("Weight: Semantic similarity", 0.0, 1.0, 0.40, 0.05)
     w_llmfit   = st.slider("Weight: LLM fit score", 0.0, 1.0, 0.30, 0.05)
@@ -403,6 +455,32 @@ with st.sidebar:
     else:
         if abs((w_keywords + w_semantic + w_llmfit) - 1.0) > 1e-6:
             st.warning("Weights should sum to 1.0")
+
+    # Model availability check
+    st.divider()
+    if st.button("📋 Check Model Availability"):
+        with st.spinner("Checking Ollama models..."):
+            conn_ok, conn_msg = check_ollama_connection()
+            if not conn_ok:
+                st.error(conn_msg)
+            else:
+                llm_ok, llm_msg = check_model_available(llm_model)
+                embed_ok, embed_msg = check_model_available(embed_model)
+
+                if llm_ok and embed_ok:
+                    st.success("✅ Both models are installed and ready!")
+                else:
+                    if not llm_ok:
+                        st.error(f"❌ LLM: {llm_msg}")
+                        st.code(f"ollama pull {llm_model}", language="bash")
+                    else:
+                        st.success(f"✅ LLM model '{llm_model}' is available")
+
+                    if not embed_ok:
+                        st.error(f"❌ Embedding: {embed_msg}")
+                        st.code(f"ollama pull {embed_model}", language="bash")
+                    else:
+                        st.success(f"✅ Embedding model '{embed_model}' is available")
 
 st.subheader("1) Upload Inputs")
 
