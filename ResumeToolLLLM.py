@@ -641,7 +641,15 @@ if start_button:
             all_chunks: List[DocChunk] = []
             candidate_meta = {}
 
-            for cand_name, file_name, fulltext in candidates_raw:
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            total_candidates = len(candidates_raw)
+
+            for idx, (cand_name, file_name, fulltext) in enumerate(candidates_raw):
+                status_text.text(f"Processing {idx+1}/{total_candidates}: {cand_name}...")
+                progress_bar.progress((idx) / total_candidates)
+
                 fulltext = clean_text(fulltext)
                 chunks = split_into_chunks_by_words(fulltext)
                 if not chunks:
@@ -666,9 +674,15 @@ if start_button:
                     "chunks": ch_objs
                 }
 
+            progress_bar.progress(1.0)
+            status_text.text("Embedding complete. Starting candidate scoring...")
+
             # Score each candidate
             ranked: List[CandidateScore] = []
-            for cand_name, meta in candidate_meta.items():
+            total_for_scoring = len(candidate_meta)
+            for score_idx, (cand_name, meta) in enumerate(candidate_meta.items()):
+                status_text.text(f"Scoring {score_idx+1}/{total_for_scoring}: {cand_name}...")
+                progress_bar.progress(score_idx / total_for_scoring)
                 try:
                     fulltext = meta["fulltext"]
 
@@ -738,6 +752,10 @@ if start_button:
                     continue
 
             ranked = sorted(ranked, key=lambda x: x.final_score, reverse=True)
+
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
 
             # Save to session
             st.session_state["JD"] = JD
