@@ -125,6 +125,14 @@ def split_into_chunks_by_words(text: str, max_words: int = None, overlap: int = 
     for start in range(0, len(words), step):
         end = min(len(words), start + max_words)
         chunk = " ".join(words[start:end])
+
+        # DEBUG: Verify chunk size
+        chunk_word_count = len(words[start:end])
+        if chunk_word_count > max_words:
+            print(f"⚠️ DEBUG: Chunk exceeded limit in chunking function!")
+            print(f"  Expected ≤{max_words} words, got {chunk_word_count} words")
+            print(f"  Start: {start}, End: {end}, Diff: {end-start}")
+
         chunks.append(chunk)
         if end == len(words):
             break
@@ -188,6 +196,11 @@ def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
         # Truncate if needed (safety net)
         words = t.split()
         if len(words) > max_words:
+            # DEBUG: Show what's being truncated
+            print(f"⚠️ DEBUG: Truncating in embedding function!")
+            print(f"  Input has {len(words)} words (limit: {max_words})")
+            print(f"  Text preview: {t[:150]}...")
+
             t = " ".join(words[:max_words])
             print(f"Warning: Truncated embedding input to {max_words} words for {model}")
 
