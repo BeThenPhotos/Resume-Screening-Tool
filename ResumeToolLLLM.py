@@ -789,8 +789,16 @@ if start_button:
                 dim = probe_vec.shape[0]
                 index = ResumeIndex(dim=dim)
 
-                # Precompute JD embedding
-                jd_vec = ollama_embeddings([JD], model=embed_model)[0]
+                # Precompute JD embedding (chunk if needed for embedding model)
+                max_chunk_words = get_embedding_chunk_size(embed_model)
+                jd_chunks = split_into_chunks_by_words(JD, max_words=max_chunk_words)
+
+                if len(jd_chunks) > 1:
+                    print(f"ℹ️ Job description split into {len(jd_chunks)} chunks for semantic embedding")
+
+                # Embed all chunks and average them for comprehensive representation
+                jd_chunk_vecs = ollama_embeddings(jd_chunks, model=embed_model)
+                jd_vec = np.mean(jd_chunk_vecs, axis=0)  # Average pooling
             except (ConnectionError, ValueError, RuntimeError) as e:
                 st.error(f"Error during processing: {str(e)}")
                 st.stop()
