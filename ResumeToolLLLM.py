@@ -533,10 +533,82 @@ with st.sidebar:
 
     st.divider()
     st.header("⚖️ Scoring Weights")
-    w_keywords = st.slider("Weight: Keyword score", 0.0, 1.0, 0.30, 0.05)
-    w_semantic = st.slider("Weight: Semantic similarity", 0.0, 1.0, 0.40, 0.05)
-    w_llmfit   = st.slider("Weight: LLM fit score", 0.0, 1.0, 0.30, 0.05)
-    w_seniority = st.slider("Weight: Seniority alignment", 0.0, 0.5, 0.2, 0.05)
+
+    # Weight preset selector
+    weight_preset = st.selectbox(
+        "Weight Preset",
+        [
+            "Balanced (Recommended)",
+            "Semantic-Focused",
+            "LLM-Heavy",
+            "Role-Critical (Seniority Filter)",
+            "Custom"
+        ],
+        help="Choose a pre-configured weight distribution optimized for your model selection, or customize your own"
+    )
+
+    # Apply preset weights based on selection
+    if weight_preset == "Balanced (Recommended)":
+        # Adaptive based on model quality
+        w_keywords_default = 0.25
+        # Better embeddings get higher semantic weight
+        w_semantic_default = 0.45 if embed_model in ["mxbai-embed-large", "bge-large"] else 0.40
+        # Better LLMs get higher fit weight
+        w_llmfit_default = 0.40 if llm_model in ["qwen2.5:32b", "qwen2.5:72b", "llama3.3:70b"] else 0.35
+        w_seniority_default = 0.20
+
+    elif weight_preset == "Semantic-Focused":
+        # Prioritize embedding-based similarity
+        w_keywords_default = 0.20
+        w_semantic_default = 0.50
+        w_llmfit_default = 0.30
+        w_seniority_default = 0.15
+
+    elif weight_preset == "LLM-Heavy":
+        # Prioritize LLM reasoning and fit assessment
+        w_keywords_default = 0.25
+        w_semantic_default = 0.30
+        w_llmfit_default = 0.45
+        w_seniority_default = 0.20
+
+    elif weight_preset == "Role-Critical (Seniority Filter)":
+        # Use seniority as multiplicative filter
+        w_keywords_default = 0.25
+        w_semantic_default = 0.40
+        w_llmfit_default = 0.35
+        w_seniority_default = 0.0  # Multiplicative mode
+
+    else:  # Custom
+        # Use legacy defaults for manual adjustment
+        w_keywords_default = 0.30
+        w_semantic_default = 0.40
+        w_llmfit_default = 0.30
+        w_seniority_default = 0.20
+
+    # Show weights based on preset selection
+    if weight_preset == "Custom":
+        # Show manual sliders for custom configuration
+        w_keywords = st.slider("Weight: Keyword score", 0.0, 1.0, w_keywords_default, 0.05)
+        w_semantic = st.slider("Weight: Semantic similarity", 0.0, 1.0, w_semantic_default, 0.05)
+        w_llmfit   = st.slider("Weight: LLM fit score", 0.0, 1.0, w_llmfit_default, 0.05)
+        w_seniority = st.slider("Weight: Seniority alignment", 0.0, 0.5, w_seniority_default, 0.05)
+    else:
+        # Show preset weights as read-only info
+        seniority_mode = "Multiplicative Filter" if w_seniority_default == 0 else "Additive Bonus"
+        st.info(f"""
+**Active Weights:**
+- **Keywords:** {w_keywords_default:.0%} (exact keyword matching)
+- **Semantic:** {w_semantic_default:.0%} (embedding-based similarity)
+- **LLM Fit:** {w_llmfit_default:.0%} (holistic fit assessment)
+- **Seniority:** {w_seniority_default:.0%} ({seniority_mode})
+
+*Preset weights are optimized for your selected models: {llm_model} + {embed_model}*
+        """)
+        # Apply preset values
+        w_keywords = w_keywords_default
+        w_semantic = w_semantic_default
+        w_llmfit = w_llmfit_default
+        w_seniority = w_seniority_default
 
     # Performance optimization option
     skip_seniority = st.checkbox(
@@ -545,14 +617,22 @@ with st.sidebar:
         help="Skip seniority assessment to reduce processing time by ~50%. Uses expected role level as default."
     )
     
-    # Check if using additive seniority weight
-    if w_seniority > 0:
-        total_weight = w_keywords + w_semantic + w_llmfit + w_seniority
-        if total_weight > 1.0:
-            st.info(f"Total weight: {total_weight:.2f} (additive seniority scoring enabled)")
+    # Weight validation and explanation
+    if weight_preset == "Custom":
+        # Provide validation for custom weights
+        if w_seniority > 0:
+            total_weight = w_keywords + w_semantic + w_llmfit + w_seniority
+            st.info(f"Total weight: {total_weight:.2f} (additive seniority scoring)")
+        else:
+            total_weight = w_keywords + w_semantic + w_llmfit
+            if abs(total_weight - 1.0) > 0.05:
+                st.warning(f"Weights sum to {total_weight:.2f}, recommend adjusting to ~1.0")
     else:
-        if abs((w_keywords + w_semantic + w_llmfit) - 1.0) > 1e-6:
-            st.warning("Weights should sum to 1.0")
+        # Explain preset mode
+        if w_seniority > 0:
+            st.caption(f"ℹ️ Seniority adds +{w_seniority:.0%} bonus/penalty (candidates can exceed 100% score)")
+        else:
+            st.caption("ℹ️ Seniority acts as filter (multiplies final score based on role match)")
 
     # Model availability check
     st.divider()
