@@ -157,10 +157,13 @@ def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
         model = DEFAULT_EMBED
     # batch into multiple calls to avoid huge payloads
     vectors = []
-    for t in texts:
+    for idx, t in enumerate(texts):
+        # Log progress for debugging slow embeddings
+        if len(texts) > 5 and idx % 5 == 0:
+            print(f"Embedding chunk {idx+1}/{len(texts)}...")
         payload = {"model": model, "prompt": t}
         try:
-            r = requests.post(f"{OLLAMA_BASE}/api/embeddings", json=payload, timeout=180)
+            r = requests.post(f"{OLLAMA_BASE}/api/embeddings", json=payload, timeout=60)
             r.raise_for_status()
             response_data = r.json()
             if "embedding" not in response_data:
