@@ -191,7 +191,9 @@ def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
             t = " ".join(words[:max_words])
             print(f"Warning: Truncated embedding input to {max_words} words for {model}")
 
-        payload = {"model": model, "prompt": t}
+        # Request the model's full context window so Ollama doesn't default to 2048
+        ctx_window = EMBED_MODELS.get(model, {}).get("ctx_window", 8192)
+        payload = {"model": model, "prompt": t, "options": {"num_ctx": ctx_window}}
         try:
             r = requests.post(f"{OLLAMA_BASE}/api/embeddings", json=payload, timeout=60)
             r.raise_for_status()
@@ -213,14 +215,33 @@ def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
                     f"Please install it with: ollama pull {model}"
                 )
             elif e.response.status_code == 500:
-                error_msg = "Ollama server error. "
+                error_detail = ""
                 try:
                     error_detail = e.response.json().get("error", "")
-                    if "model" in error_detail.lower() or "not found" in error_detail.lower():
-                        error_msg += f"Model '{model}' may not be installed. Run: ollama pull {model}"
-                    else:
-                        error_msg += f"Details: {error_detail}"
                 except:
+                    pass
+
+                # Auto-retry with halved input on context overflow
+                if "input length exceeds" in error_detail.lower() or "context length" in error_detail.lower():
+                    words = t.split()
+                    halved = " ".join(words[:len(words) // 2])
+                    print(f"Warning: Context overflow for {model}, retrying with {len(words)//2} words (was {len(words)})")
+                    retry_payload = {"model": model, "prompt": halved, "options": {"num_ctx": ctx_window}}
+                    try:
+                        r2 = requests.post(f"{OLLAMA_BASE}/api/embeddings", json=retry_payload, timeout=60)
+                        r2.raise_for_status()
+                        vec = np.array(r2.json().get("embedding"), dtype=np.float32)
+                        vectors.append(vec)
+                        continue
+                    except Exception:
+                        pass  # Fall through to error below
+
+                error_msg = "Ollama server error. "
+                if "model" in error_detail.lower() or "not found" in error_detail.lower():
+                    error_msg += f"Model '{model}' may not be installed. Run: ollama pull {model}"
+                elif error_detail:
+                    error_msg += f"Details: {error_detail}"
+                else:
                     error_msg += "Check Ollama logs for details."
                 raise RuntimeError(error_msg)
             else:
@@ -368,8 +389,9 @@ def get_embedding_chunk_size(embed_model: str) -> int:
     # This accounts for technical text, special chars, and tokenization quirks
     safe_words = int(safe_tokens * 0.60)
 
-    # Set reasonable minimum (but allow small contexts)
+    # Set reasonable minimum and maximum
     safe_words = max(100, safe_words)
+    safe_words = min(safe_words, 2000)  # Cap at 2000 words - no chunk needs to be larger
 
     return safe_words
 
