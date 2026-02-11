@@ -28,13 +28,13 @@ import faiss
 # ----------------------------
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
-# Model presets with descriptions
+# Model presets with descriptions and context windows
 LLM_MODELS = {
-    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": True},
-    "qwen2.5:14b": {"name": "Qwen 2.5 14B", "desc": "Balanced quality/speed (9GB VRAM)", "default": False},
-    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": False},
-    "qwen2.5:72b": {"name": "Qwen 2.5 72B", "desc": "Outstanding quality, slower (40GB+ uses CPU+GPU)", "default": False},
-    "llama3.3:70b": {"name": "Llama 3.3 70B", "desc": "Alternative high-quality option (40GB+)", "default": False},
+    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": True, "ctx_window": 8192},
+    "qwen2.5:14b": {"name": "Qwen 2.5 14B", "desc": "Balanced quality/speed (9GB VRAM)", "default": False, "ctx_window": 32768},
+    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": False, "ctx_window": 32768},
+    "qwen2.5:72b": {"name": "Qwen 2.5 72B", "desc": "Outstanding quality, slower (40GB+ uses CPU+GPU)", "default": False, "ctx_window": 32768},
+    "llama3.3:70b": {"name": "Llama 3.3 70B", "desc": "Alternative high-quality option (40GB+)", "default": False, "ctx_window": 128000},
 }
 
 EMBED_MODELS = {
@@ -294,6 +294,11 @@ def llm_fit_score_llm(resume_text: str, job_desc: str, model: str = None) -> Tup
     """Ask the LLM for a structured 0–100 fit score with a short rationale."""
     if model is None:
         model = DEFAULT_LLM
+
+    # Truncate to fit in context window (conservative limits for 8B models)
+    max_jd_chars = 2000
+    max_resume_chars = 3000
+
     prompt = f"""
 You are scoring resume-job fit.
 
@@ -308,10 +313,10 @@ Criteria:
 - Red flags or gaps
 
 JOB DESCRIPTION:
-\"\"\"{job_desc[:8000]}\"\"\"
+\"\"\"{job_desc[:max_jd_chars]}\"\"\"
 
 RESUME:
-\"\"\"{resume_text[:8000]}\"\"\"
+\"\"\"{resume_text[:max_resume_chars]}\"\"\"
 """
     resp = ollama_chat([{"role":"user", "content": prompt}], model=model, temperature=0.1)
     # Try to parse minimal JSON in messy outputs
@@ -330,6 +335,10 @@ def estimate_seniority(resume_text: str, model: str = None) -> Tuple[int, str]:
     """Estimate candidate seniority level using LLM analysis."""
     if model is None:
         model = DEFAULT_LLM
+
+    # Truncate to fit in context window
+    max_resume_chars = 3000
+
     prompt = f"""
 Analyze this resume and determine the candidate's seniority level.
 
@@ -346,7 +355,7 @@ Seniority Scale:
 Consider: years of experience, job titles, management responsibilities, project complexity, team size led.
 
 RESUME:
-\"\"\"{resume_text[:8000]}\"\"\"
+\"\"\"{resume_text[:max_resume_chars]}\"\"\"
 """
     resp = ollama_chat([{"role":"user", "content": prompt}], model=model, temperature=0.1)
     # Try to parse minimal JSON in messy outputs
