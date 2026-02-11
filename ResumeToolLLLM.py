@@ -350,18 +350,26 @@ def get_context_limits(model: str) -> Tuple[int, int]:
 def get_embedding_chunk_size(embed_model: str) -> int:
     """Calculate safe chunk size (in words) for the embedding model.
 
+    Uses conservative safety margins to prevent context overflow:
+    - 50% safety margin (aggressive tokenization can use 2x expected tokens)
+    - 0.60 token-to-word ratio (assumes 1 word ≈ 1.67 tokens, typical for embeddings)
+
     Returns: max_chunk_words
     """
     # Get embedding model's context window
     ctx_window = EMBED_MODELS.get(embed_model, {}).get("ctx_window", 8192)
 
-    # Apply safety margin (30%) and convert tokens to words
-    # More accurate ratio: 1 token ≈ 0.75 words (or 1 word ≈ 1.33 tokens)
-    safe_tokens = int(ctx_window * 0.7)  # 30% safety margin
-    safe_words = int(safe_tokens * 0.75)  # Convert to words
+    # Apply CONSERVATIVE safety margin (50%) to account for tokenization variance
+    # Embedding models can use 1.3-1.7 tokens per word depending on text density
+    safe_tokens = int(ctx_window * 0.5)  # 50% safety margin
 
-    # Set reasonable minimum
-    safe_words = max(200, safe_words)
+    # Convert tokens to words using conservative ratio
+    # Ratio 0.60 means: 1 token ≈ 0.60 words (or 1 word ≈ 1.67 tokens)
+    # This accounts for technical text, special chars, and tokenization quirks
+    safe_words = int(safe_tokens * 0.60)
+
+    # Set reasonable minimum (but allow small contexts)
+    safe_words = max(100, safe_words)
 
     return safe_words
 
