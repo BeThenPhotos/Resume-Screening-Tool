@@ -39,9 +39,24 @@ LLM_MODELS = {
 }
 
 EMBED_MODELS = {
-    "nomic-embed-text": {"name": "Nomic Embed Text", "desc": "Fast, good quality (default)", "default": True},
-    "mxbai-embed-large": {"name": "MxBai Embed Large", "desc": "Better semantic understanding", "default": False},
-    "bge-large": {"name": "BGE Large", "desc": "Alternative high-quality embeddings", "default": False},
+    "nomic-embed-text": {
+        "name": "Nomic Embed Text",
+        "desc": "Fast, good quality (default)",
+        "default": True,
+        "ctx_window": 8192
+    },
+    "mxbai-embed-large": {
+        "name": "MxBai Embed Large",
+        "desc": "Better semantic understanding",
+        "default": False,
+        "ctx_window": 512
+    },
+    "bge-large": {
+        "name": "BGE Large",
+        "desc": "Alternative high-quality embeddings",
+        "default": False,
+        "ctx_window": 512
+    },
 }
 
 # Get defaults from environment or use first default from presets
@@ -97,15 +112,18 @@ def read_txt_bytes(b: bytes) -> str:
     except Exception:
         return ""
 
-def split_into_chunks_by_words(text: str, max_tokens: int = MAX_CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP):
-    # naive token ~= word heuristic
+def split_into_chunks_by_words(text: str, max_words: int = None, overlap: int = CHUNK_OVERLAP):
+    # Backward compatibility: if max_words not specified, use old MAX_CHUNK_TOKENS
+    if max_words is None:
+        max_words = MAX_CHUNK_TOKENS
+
     words = text.split()
     if not words:
         return []
-    step = max(1, max_tokens - overlap)
+    step = max(1, max_words - overlap)
     chunks = []
     for start in range(0, len(words), step):
-        end = min(len(words), start + max_tokens)
+        end = min(len(words), start + max_words)
         chunk = " ".join(words[start:end])
         chunks.append(chunk)
         if end == len(words):
@@ -156,12 +174,23 @@ def check_model_available(model: str) -> Tuple[bool, str]:
 def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
     if model is None:
         model = DEFAULT_EMBED
+
+    # Calculate safe word limit for this model
+    max_words = get_embedding_chunk_size(model)
+
     # batch into multiple calls to avoid huge payloads
     vectors = []
     for idx, t in enumerate(texts):
         # Log progress for debugging slow embeddings
         if len(texts) > 5 and idx % 5 == 0:
             print(f"Embedding chunk {idx+1}/{len(texts)}...")
+
+        # Truncate if needed (safety net)
+        words = t.split()
+        if len(words) > max_words:
+            t = " ".join(words[:max_words])
+            print(f"Warning: Truncated embedding input to {max_words} words for {model}")
+
         payload = {"model": model, "prompt": t}
         try:
             r = requests.post(f"{OLLAMA_BASE}/api/embeddings", json=payload, timeout=60)
@@ -317,6 +346,24 @@ def get_context_limits(model: str) -> Tuple[int, int]:
     max_resume_chars = max(2000, max_resume_chars)
 
     return max_jd_chars, max_resume_chars
+
+def get_embedding_chunk_size(embed_model: str) -> int:
+    """Calculate safe chunk size (in words) for the embedding model.
+
+    Returns: max_chunk_words
+    """
+    # Get embedding model's context window
+    ctx_window = EMBED_MODELS.get(embed_model, {}).get("ctx_window", 8192)
+
+    # Apply safety margin (30%) and convert tokens to words
+    # More accurate ratio: 1 token ≈ 0.75 words (or 1 word ≈ 1.33 tokens)
+    safe_tokens = int(ctx_window * 0.7)  # 30% safety margin
+    safe_words = int(safe_tokens * 0.75)  # Convert to words
+
+    # Set reasonable minimum
+    safe_words = max(200, safe_words)
+
+    return safe_words
 
 def llm_fit_score_llm(resume_text: str, job_desc: str, model: str = None) -> Tuple[float, str]:
     """Ask the LLM for a structured 0–100 fit score with a short rationale."""
@@ -685,7 +732,9 @@ if start_button:
                 progress_bar.progress((idx) / total_candidates)
 
                 fulltext = clean_text(fulltext)
-                chunks = split_into_chunks_by_words(fulltext)
+                # Calculate safe chunk size for selected embedding model
+                max_chunk_words = get_embedding_chunk_size(embed_model)
+                chunks = split_into_chunks_by_words(fulltext, max_words=max_chunk_words)
                 if not chunks:
                     continue
                 vecs = ollama_embeddings(chunks, model=embed_model)
