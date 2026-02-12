@@ -371,26 +371,25 @@ def get_context_limits(model: str) -> Tuple[int, int]:
 def get_embedding_chunk_size(embed_model: str) -> int:
     """Calculate safe chunk size (in words) for the embedding model.
 
-    Uses conservative safety margins to prevent context overflow:
-    - 50% safety margin (aggressive tokenization can use 2x expected tokens)
-    - 0.60 token-to-word ratio (assumes 1 word ≈ 1.67 tokens, typical for embeddings)
+    Uses moderate safety margins with auto-retry fallback on overflow:
+    - 30% safety margin (0.70 usable context)
+    - 0.75 token-to-word ratio (assumes 1 word ≈ 1.33 tokens)
+    - Minimum 200 words per chunk
+    - Any rare overflow is caught by the auto-retry in ollama_embeddings()
 
     Returns: max_chunk_words
     """
     # Get embedding model's context window
     ctx_window = EMBED_MODELS.get(embed_model, {}).get("ctx_window", 8192)
 
-    # Apply CONSERVATIVE safety margin (50%) to account for tokenization variance
-    # Embedding models can use 1.3-1.7 tokens per word depending on text density
-    safe_tokens = int(ctx_window * 0.5)  # 50% safety margin
+    # Apply 30% safety margin for tokenization variance
+    safe_tokens = int(ctx_window * 0.70)  # 30% safety margin
 
-    # Convert tokens to words using conservative ratio
-    # Ratio 0.60 means: 1 token ≈ 0.60 words (or 1 word ≈ 1.67 tokens)
-    # This accounts for technical text, special chars, and tokenization quirks
-    safe_words = int(safe_tokens * 0.60)
+    # Convert tokens to words using 0.75 ratio (1 word ≈ 1.33 tokens)
+    safe_words = int(safe_tokens * 0.75)
 
     # Set reasonable minimum and maximum
-    safe_words = max(100, safe_words)
+    safe_words = max(200, safe_words)
     safe_words = min(safe_words, 2000)  # Cap at 2000 words - no chunk needs to be larger
 
     return safe_words
