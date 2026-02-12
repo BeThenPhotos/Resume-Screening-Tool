@@ -31,31 +31,22 @@ OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Model presets with descriptions and context windows
 LLM_MODELS = {
-    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": True, "ctx_window": 8192},
-    "qwen2.5:14b": {"name": "Qwen 2.5 14B", "desc": "Balanced quality/speed (9GB VRAM)", "default": False, "ctx_window": 32768},
-    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": False, "ctx_window": 32768},
-    "qwen2.5:72b": {"name": "Qwen 2.5 72B", "desc": "Outstanding quality, slower (40GB+ uses CPU+GPU)", "default": False, "ctx_window": 32768},
-    "llama3.3:70b": {"name": "Llama 3.3 70B", "desc": "Alternative high-quality option (40GB+)", "default": False, "ctx_window": 128000},
+    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": True, "ctx_window": 32768},
+    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": False, "ctx_window": 8192},
 }
 
 EMBED_MODELS = {
-    "nomic-embed-text": {
-        "name": "Nomic Embed Text",
-        "desc": "Fast, good quality (default)",
-        "default": True,
-        "ctx_window": 8192
-    },
     "mxbai-embed-large": {
         "name": "MxBai Embed Large",
-        "desc": "Better semantic understanding",
-        "default": False,
+        "desc": "Better semantic understanding (recommended)",
+        "default": True,
         "ctx_window": 512
     },
-    "bge-large": {
-        "name": "BGE Large",
-        "desc": "Alternative high-quality embeddings",
+    "nomic-embed-text": {
+        "name": "Nomic Embed Text",
+        "desc": "Fast, large context window",
         "default": False,
-        "ctx_window": 512
+        "ctx_window": 8192
     },
 }
 
@@ -550,16 +541,6 @@ with st.sidebar:
     )
     embed_model = embed_keys[embed_options.index(embed_selection)]
 
-    # Advanced: Allow custom model input
-    with st.expander("🔧 Advanced: Custom Models"):
-        use_custom_llm = st.checkbox("Use custom LLM model")
-        if use_custom_llm:
-            llm_model = st.text_input("Custom LLM", llm_model)
-
-        use_custom_embed = st.checkbox("Use custom embedding model")
-        if use_custom_embed:
-            embed_model = st.text_input("Custom Embedding", embed_model)
-
     st.divider()
     st.header("⚖️ Scoring Weights")
 
@@ -581,9 +562,9 @@ with st.sidebar:
         # Adaptive based on model quality
         w_keywords_default = 0.25
         # Better embeddings get higher semantic weight
-        w_semantic_default = 0.45 if embed_model in ["mxbai-embed-large", "bge-large"] else 0.40
+        w_semantic_default = 0.45 if embed_model == "mxbai-embed-large" else 0.40
         # Better LLMs get higher fit weight
-        w_llmfit_default = 0.40 if llm_model in ["qwen2.5:32b", "qwen2.5:72b", "llama3.3:70b"] else 0.35
+        w_llmfit_default = 0.40 if llm_model == "qwen2.5:32b" else 0.35
         w_seniority_default = 0.20
 
     elif weight_preset == "Semantic-Focused":
