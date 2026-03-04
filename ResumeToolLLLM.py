@@ -31,8 +31,7 @@ OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Model presets with descriptions and context windows
 LLM_MODELS = {
-    "qwen2.5:32b": {"name": "Qwen 2.5 32B", "desc": "Excellent quality, recommended (18GB VRAM)", "default": True, "ctx_window": 32768},
-    "qwen3:8b": {"name": "Qwen 3 8B", "desc": "Fast, good quality (5GB VRAM)", "default": False, "ctx_window": 8192},
+    "qwen3.5:9b": {"name": "Qwen 3.5 9B", "desc": "Fast, excellent quality (7GB VRAM)", "default": True, "ctx_window": 32768},
 }
 
 EMBED_MODELS = {
@@ -51,7 +50,7 @@ EMBED_MODELS = {
 }
 
 # Get defaults from environment or use first default from presets
-DEFAULT_LLM = os.environ.get("LLM_MODEL") or next((k for k, v in LLM_MODELS.items() if v["default"]), "qwen3:8b")
+DEFAULT_LLM = os.environ.get("LLM_MODEL") or next((k for k, v in LLM_MODELS.items() if v["default"]), "qwen3.5:9b")
 DEFAULT_EMBED = os.environ.get("EMBED_MODEL") or next((k for k, v in EMBED_MODELS.items() if v["default"]), "nomic-embed-text")
 
 MAX_CHUNK_TOKENS = 800
@@ -563,8 +562,8 @@ with st.sidebar:
         w_keywords_default = 0.25
         # Better embeddings get higher semantic weight
         w_semantic_default = 0.45 if embed_model == "mxbai-embed-large" else 0.40
-        # Better LLMs get higher fit weight
-        w_llmfit_default = 0.40 if llm_model == "qwen2.5:32b" else 0.35
+        # Qwen 3.5 gets boosted LLM fit weight
+        w_llmfit_default = 0.40
         w_seniority_default = 0.20
 
     elif weight_preset == "Semantic-Focused":
