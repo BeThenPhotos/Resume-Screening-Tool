@@ -240,7 +240,7 @@ def ollama_embeddings(texts: List[str], model: str = None) -> np.ndarray:
             raise RuntimeError(f"Error getting embeddings: {str(e)}")
     return np.vstack(vectors)
 
-def ollama_chat(messages: List[Dict], model: str = None, json_mode: bool = False, temperature: float=0.2, system_prompt: str=None) -> str:
+def ollama_chat(messages: List[Dict], model: str = None, json_mode: bool = False, temperature: float=0.2, system_prompt: str=None, timeout: int=120) -> str:
     if model is None:
         model = DEFAULT_LLM
     body = {
@@ -253,7 +253,7 @@ def ollama_chat(messages: List[Dict], model: str = None, json_mode: bool = False
     }
     # Many local models ignore tools/json; we instruct format via prompt.
     try:
-        r = requests.post(f"{OLLAMA_BASE}/api/chat", json=body, timeout=60)
+        r = requests.post(f"{OLLAMA_BASE}/api/chat", json=body, timeout=timeout)
         r.raise_for_status()
         response_data = r.json()
         if "message" not in response_data or "content" not in response_data["message"]:
