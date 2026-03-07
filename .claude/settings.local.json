@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ollama list:*)",
+      "Bash(ollama pull:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(while read commit)",
+      "Bash(do git show $commit:ResumeToolLLLM.py)",
+      "Bash(done)",
+      "Bash(python -m streamlit:*)",
+      "Bash(python -c:*)",
+      "Bash(git log:*)",
+      "Bash(python3:*)",
+      "Bash(dir:*)",
+      "Bash(find:*)"
+    ]
+  }
+}
